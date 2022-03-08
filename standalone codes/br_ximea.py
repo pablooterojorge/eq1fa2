@@ -55,18 +55,23 @@ vframes = avgtime*1000/loopdelay
 
 #initialize graphic windows
 cv2.namedWindow('Input Frame')
+cv2.namedWindow('Trackbars', cv2.WINDOW_NORMAL)
 #cv2.namedWindow('Processed Frame')
 
 #define empty function for trackbars
 def nothing(x):
     pass
 
-#initialize trackbar for br computation trigger
-cv2.createTrackbar('BR Enable','Input Frame',0,1,nothing)
+##initialize trackbar for br computation trigger
+cv2.createTrackbar('BR Enable','Trackbars',0,1,nothing)
 #initialize trackbar for offset of fiber ii0 zone
-cv2.createTrackbar('Offset ii0','Input Frame',0,512,nothing)
+cv2.createTrackbar('Offset ii0','Trackbars',0,512,nothing)
+#initialize trackbar for offset of fiber ii0 zone
+cv2.createTrackbar('P','Trackbars',0,255,nothing)
+
 #create voltage array
-vlist = np.arange(0.1,20.1,0.1)
+#vlist = np.arange(0.1,20.1,0.1)
+vlist = [ 0. ,  1.2,  1.6,  2. ,  2.2,  2.4,  2.6,  2.8,  3. ,  3.2,  3.4, 3.4,  3.6,  3.8,  4.2,  4.4,  4.8,  5.4,  6.2,  7. ,  7.8,  8.8, 10. , 11.6, 20. ]
 
 #set siglent state
 sdg.write("C1:OUTP OFF")
@@ -157,32 +162,31 @@ try:
         img = cap.get_image_data_numpy()
         
         #get offset
-        off = cv2.getTrackbarPos('Offset ii0', 'Input Frame')
+        off = cv2.getTrackbarPos('Offset ii0', 'Trackbars')
         top = int(topinit - off)
         bot = int(bottinit + off)
         
         #check br trigger
-        if  cv2.getTrackbarPos('BR Enable', 'Input Frame') == 1:
+        if  cv2.getTrackbarPos('BR Enable', 'Trackbars') == 1:
+              
+            #get data and pass them from camera to img
+            cam.get_image(cap)
+            
+            #create numpy array with data from camera. Dimensions of the array are 
+            #determined by imgdataformat
+            img = cap.get_image_data_numpy()
             
             #add mean brightness for fiber
-            ii0favg = (ii0favg + np.mean(img[top:bot,:,1]))/2
-        
+            ii0favg = (ii0favg + np.mean(img[top:bot,:,1]))/(framecounter + 1)
+            
             #add mean brightness for lc retarder
-            ii0lcavg = (ii0lcavg + np.mean(img[0,:,1]))/2
+            ii0lcavg = (ii0lcavg + np.mean(img[0,:,1]))/(framecounter + 1)
+            
+            #step framecounter
+            framecounter +=1
             
             #check if its time for br computation, avgtime has elapsed
             if framecounter == vframes:
-                
-                #set new voltage value
-                v = str(vlist[iv])
-                sdg.write("C1:BSWV AMP, %s"%v)
-                
-                #get data and pass them from camera to img
-                cam.get_image(cap)
-                
-                #create numpy array with data from camera. Dimensions of the array are 
-                #determined by imgdataformat
-                img = cap.get_image_data_numpy()
                 
                 #save current voltage level and average brightness
                 brf.vrms[iv] = vlist[iv]
@@ -192,6 +196,11 @@ try:
                 #reset average values
                 ii0favg = 0
                 ii0lcavg = 0
+                
+                #set voltage value
+                v = str(vlist[iv])
+                sdg.write("C1:BSWV AMP, %s"%v)
+                cv2.waitKey(5)
                 
                 #increase iv loop by 1
                 iv += 1
@@ -285,8 +294,10 @@ try:
                 #reset iv counter
                 iv = 0  
                 
-            #step framecounter
-            framecounter +=1
+                #set voltage value
+                v = str(vlist[iv])
+                sdg.write("C1:BSWV AMP, %s"%v)
+                cv2.waitKey(50)
             
         #plot measurement lines
         cv2.line(img,(0,top),(len(img[1]),top),(0,0,255),2)   
@@ -294,6 +305,8 @@ try:
         
         #plot previous frame fps
         cv2.putText(img,r'%s FPS'%perf, (50,1000),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
+        #plot obtained retardance
+        cv2.putText(img,r'%s ret'%np.round(paramsfibre[1], decimals = 3), (50,950),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
         
         #show input image
         scale = 75
