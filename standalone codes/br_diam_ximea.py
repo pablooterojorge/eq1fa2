@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Nov 24 10:15:04 2021
+Created on Tue Mar  8 11:54:36 2022
 
-@author: Pablo Otero
+@author: po-po
 """
 
 from ximea import xiapi
@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy import signal
 import scipy.optimize as opt
+from scipy import stats
+from simpleim2D import *
 
 #create instance for first connected camera 
 cam = xiapi.Camera()
@@ -65,13 +67,11 @@ def nothing(x):
 ##initialize trackbar for br computation trigger
 cv2.createTrackbar('BR Enable','Trackbars',0,1,nothing)
 #initialize trackbar for offset of fiber ii0 zone
-cv2.createTrackbar('Offset ii0','Trackbars',0,512,nothing)
-#initialize trackbar for offset of fiber ii0 zone
-cv2.createTrackbar('P','Trackbars',0,255,nothing)
+cv2.createTrackbar('Offset ii0','Trackbars',20,512,nothing)
 
 #create voltage array
 #vlist = np.arange(0.1,20.1,0.1)
-vlist = [ 0. ,  1.2,  1.6,  2. ,  2.2,  2.4,  2.6,  2.8,  3. ,  3.2,  3.4, 3.4,  3.6,  3.8,  4.2,  4.4,  4.8,  5.4,  6.2,  7. ,  7.8,  8.8, 10. , 11.6, 20. ]
+vlist = np.array([ 0. ,  1.2,  1.6,  2. ,  2.2,  2.4,  2.6,  2.8,  3. ,  3.2,  3.4, 3.4,  3.6,  3.8,  4.2,  4.4,  4.8,  5.4,  6.2,  7. ,  7.8,  8.8, 10. , 11.6, 20. ])
 
 #set siglent state
 sdg.write("C1:OUTP OFF")
@@ -94,7 +94,7 @@ brf['ii0fn'] = np.NAN
 brf['ii0lc'] = np.NAN
 brf['ii0lcn'] = np.NAN
 brf['retlcn'] = np.NAN
-brf['retf'] = np.NAN
+brf['diam'] = np.NAN
 
 #create empty dataframe to store data of experiment
 data = pd.DataFrame(index = np.arange(10000))
@@ -108,11 +108,13 @@ data['fb'] = np.NAN
 data['fbSE'] = np.NAN
 data['fo'] = np.NAN
 data['foSE'] = np.NAN
+data['diam'] = np.NAN
 datacounter = 0
 
 #initialize mean brightness for fiber
 ii0favg = 0;
 ii0lcavg = 0;
+diamavg = 0;
 
 #initialize fit parameters
 paramsfibre = [0,0,0]
@@ -182,6 +184,14 @@ try:
             #add mean brightness for lc retarder
             ii0lcavg = (ii0lcavg + np.mean(img[0,:,1]))/(framecounter + 1)
             
+###############################################################################
+
+            y3, y4 = simpleim2D(img)
+            
+            diamavg =   (diamavg + (y4-y3))  / (framecounter + 1)
+            x3 = int(len(img[0])/2)
+            
+###############################################################################         
             #step framecounter
             framecounter +=1
             
@@ -192,10 +202,12 @@ try:
                 brf.vrms[iv] = vlist[iv]
                 brf.ii0f[iv] = ii0favg
                 brf.ii0lc[iv] = ii0lcavg
+                brf.diam[iv] = diamavg
                 
                 #reset average values
                 ii0favg = 0
                 ii0lcavg = 0
+                diamavg = 0
                 
                 #set voltage value
                 v = str(vlist[iv])
@@ -268,8 +280,10 @@ try:
                 data.faSE[datacounter] = fibrese[0]
                 data.fbSE[datacounter] = fibrese[1]
                 data.foSE[datacounter] = fibrese[2]
+                data.diam[datacounter] = 203/464*stats.mode(brf.diam)[0][0]
                 
                 datacounter +=1
+                
                 if datacounter == len(data):
                     datacounter = 0
                     
@@ -307,13 +321,20 @@ try:
         cv2.putText(img,r'%s FPS'%perf, (50,1000),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
         #plot obtained retardance
         cv2.putText(img,r'%s ret'%np.round(paramsfibre[1], decimals = 3), (50,950),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
-        
+        if datacounter == 0:
+                cv2.putText(img,r'%s diam'%np.round(data.diam[(datacounter)], decimals = 3), (50,900),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
+        else:
+                cv2.putText(img,r'%s diam'%np.round(data.diam[(datacounter-1)], decimals = 3), (50,900),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
+                
         #show input image
         scale = 75
         rszx = int(img.shape[1]*scale/100)
         rszy = int(img.shape[0]*scale/100)
         
+     
+        
         imgrsz = cv2.resize(img, (rszx,rszy))
+        
         cv2.imshow('Input Frame',imgrsz)
                 
         #wait for loop delay
@@ -341,8 +362,6 @@ print('Done.')
 
 filename = input('Input filename: ')
 data.to_csv('%s.csv'%filename)
-
-
 
 
 
