@@ -3,6 +3,7 @@
 def simpleim2D(img):
     
     import numpy as np
+    from scipy.signal import argrelextrema 
     
     #simple border search
     #get center slice as array
@@ -24,15 +25,14 @@ def simpleim2D(img):
         change[i] = np.abs(slice_center[i]-bg_ii0)/(255)
         
     #compute most common change value after bg, this should correlate to fiber region
-    histchange = np.histogram(change,100,[0, 1])[0]  
-    histchange[0] = 0
-    fb_change = np.argmax(histchange)/100
-    
+    histchange = np.histogram(change,100,[0, 1])[0]
+    fb_change = np.max(change)
+
     #top down search for fiber edge
     y3 = np.argmax(change > (33/100*fb_change))
     #flip array and do bottom up search for fiber edge
     change = np.flip(change)
     y4 = len(change) - np.argmax(change > (33/100*fb_change))
-   
+        
     return y3, y4
 
