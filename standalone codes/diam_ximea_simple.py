@@ -70,7 +70,7 @@ try:
         #determined by imgdataformat
         img = cap.get_image_data_numpy()
         
-        y3,y4 = simpleim2D(img)
+        y3, y4 = simpleim2D(img)          
         
         #add center line of fiber diameter
         x3  = int(len(img[0])/2)
