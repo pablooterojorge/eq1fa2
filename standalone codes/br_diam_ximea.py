@@ -17,6 +17,9 @@ import scipy.optimize as opt
 from scipy import stats
 from simpleim2D import *
 
+#select detection orientation, 0 is default, fiber is horizontal, 1 for vertical
+direction = 0;
+
 #create instance for first connected camera 
 cam = xiapi.Camera()
 
@@ -32,7 +35,7 @@ cam.set_imgdataformat('XI_RGB24')
 #siglent signal generator settings
 rm = pyvisa.ResourceManager()
 rm.list_resources() 
-sdg = rm.open_resource("USB0::0xF4ED::0xEE3A::SDG08CBX3R0499::INSTR")
+sdg = rm.open_resource("USB0::0xF4EC::0x1103::SDG1XDCC6R0469::INSTR")
 
 #create instance of Image to store image data and metadata
 cap = xiapi.Image()
@@ -178,18 +181,23 @@ try:
             #determined by imgdataformat
             img = cap.get_image_data_numpy()
             
-            #add mean brightness for fiber
-            ii0favg = (ii0favg + np.mean(img[top:bot,:,1]))/(framecounter + 1)
-            
-            #add mean brightness for lc retarder
-            ii0lcavg = (ii0lcavg + np.mean(img[0,:,1]))/(framecounter + 1)
-            
+            if direction == 0:
+                #add mean brightness for fiber
+                ii0favg = (ii0favg + np.mean(img[top:bot,:,1]))/(framecounter + 1)
+                
+                #add mean brightness for lc retarder
+                ii0lcavg = (ii0lcavg + np.mean(img[0,:,1]))/(framecounter + 1)
+            elif direction == 1:
+                #add mean brightness for fiber
+                ii0favg = (ii0favg + np.mean(img[:,top:bot,1]))/(framecounter + 1)
+                
+                #add mean brightness for lc retarder
+                ii0lcavg = (ii0lcavg + np.mean(img[:,0,1]))/(framecounter + 1)
 ###############################################################################
 
-            y3, y4 = simpleim2D(img)
+            y3, y4 = simpleim2D(img,direction)
             
             diamavg =   (diamavg + (y4-y3))  / (framecounter + 1)
-            x3 = int(len(img[0])/2)
             
 ###############################################################################         
             #step framecounter
@@ -314,9 +322,13 @@ try:
                 cv2.waitKey(50)
             
         #plot measurement lines
-        cv2.line(img,(0,top),(len(img[1]),top),(0,0,255),2)   
-        cv2.line(img,(0,bot),(len(img[1]),bot),(0,0,255),2) 
-        
+        if direction == 0:
+            cv2.line(img,(0,top),(len(img[1]),top),(0,0,255),2)   
+            cv2.line(img,(0,bot),(len(img[1]),bot),(0,0,255),2) 
+        elif direction == 1:
+            cv2.line(img,(top,0),(top,len(img[0])),(0,0,255),2)   
+            cv2.line(img,(bot,0),(bot,len(img[0])),(0,0,255),2) 
+            
         #plot previous frame fps
         cv2.putText(img,r'%s FPS'%perf, (50,1000),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
         #plot obtained retardance
